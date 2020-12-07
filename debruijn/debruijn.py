@@ -66,19 +66,37 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
-    pass
-
+    with open(fastq_file,'rt') as f:
+        sentences = f.readlines()
+        for sentence in sentences:
+            sentence = sentence.replace("\n", "")
+            for letter in sentence:
+                if letter not in "TGCA":
+                    break
+            else:
+                yield sentence
 
 def cut_kmer(read, kmer_size):
-    pass
+    for i in range(len(read)-kmer_size+1):
+        yield read[i : i + kmer_size]
 
 
 def build_kmer_dict(fastq_file, kmer_size):
-    pass
+    kmer_dict = {}
+    for sentence in read_fastq(fastq_file):
+        for kmer in cut_kmer(sentence, kmer_size):
+            if kmer in kmer_dict:
+                kmer_dict[kmer] += 1
+            else:
+                kmer_dict[kmer] = 1
+    return kmer_dict
 
 
 def build_graph(kmer_dict):
-    pass
+    graph = nx.DiGraph()
+    for kmer in kmer_dict.keys():
+        graph.add_weighted_edges_from([(kmer[:-1], kmer[1:], kmer_dict[kmer])])
+    return graph
 
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
@@ -88,7 +106,7 @@ def std(data):
     pass
 
 
-def select_best_path(graph, path_list, path_length, weight_avg_list, 
+def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
     pass
 
@@ -128,6 +146,8 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-
+    print(args)
+    a=build_kmer_dict(args.fastq_file, 3)
+    print(build_graph(a).number_of_nodes())
 if __name__ == '__main__':
     main()
