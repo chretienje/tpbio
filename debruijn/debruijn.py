@@ -100,24 +100,96 @@ def build_graph(kmer_dict):
 
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
-    pass
+    if delete_entry_node:
+        for path in path_list:
+            starting_node = path[0]
+            graph.remove_node(starting_node)
+    if delete_sink_node:
+        for path in path_list:
+            sink_node = path[-1]
+            graph.remove_node(sink_node)
+    for path in path_list:
+        for node in path[1:-1]:
+            graph.remove_node(node)
+    return graph
+
 
 def std(data):
-    pass
+    return statistics.stdev(data)
 
 
 def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
-    pass
+
+    same_weight_path_index = set()
+    weight_max = max(weight_avg_list)
+    is_weight_unique = 0
+    for i in range(len(weight_avg_list)):
+        weight = weight_avg_list[i]
+        if weight == weight_max:
+            is_weight_unique += 1
+            same_weight_path_index.add(i)
+    if is_weight_unique == 1:
+        indice = weight_avg_list.index(weight_max)
+        graph = remove_paths(graph, path_list[:indice]+path_list[indice+1:], delete_entry_node, delete_sink_node)
+        return graph
+    same_length_path_index = set()
+    length_max = max(path_length)
+    is_length_unique = 0
+    for i in range(len(path_length)):
+        if i not in same_weight_path_index:
+            continue
+        length = path_length[i]
+        if length == length_max:
+            is_length_unique += 1
+            same_length_path_index.add(i)
+    if is_length_unique == 1:
+        indice = path_length.index(length_max)
+        graph = remove_paths(graph, path_list[:indice]+path_list[indice+1:], delete_entry_node, delete_sink_node)
+        return graph
+
+    path_list_remaining = [path[i] for i in range(len(path_list)) if i in same_length_path_index]
+    indice = randint(0, len(path_list_remaining))
+    graph = remove_paths(graph, path_list_remaining[:indice]+path_list_remaining[indice+1:], delete_entry_node, delete_sink_node)
+    return graph
+
+
 
 def path_average_weight(graph, path):
-    pass
+    s = 0
+    for i in range(len(path)-1):
+        node = path[i]
+        boo = False
+        for n, nbrs in graph.adj.items():
+            if boo:
+                break
+            if n == node:
+                for nbr, eattr in nbrs.items():
+                    if path[i+1] == nbr:
+                        s+=eattr["weight"]
+                        boo = True
+                        break
+    return s/(len(path)-1)
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    pass
+    paths = list(nx.all_simple_paths(graph, ancestor_node, descendant_node))
+    if paths == []:
+        return graph
+    return select_best_path(graph, paths, [len(path) for path in paths], [path_average_weight(graph, path) for path in paths])
 
 def simplify_bubbles(graph):
-    pass
+    ancestor_nodes = []
+    descendant_nodes = []
+    for node in graph.nodes:
+        if len(list(graph.successors(node))) > 1:
+            ancestor_nodes.append(node)
+        if len(list(graph.predecessors(node))) > 1:
+            descendant_nodes.append(node)
+    for ancestor_node in ancestor_nodes:
+        for descendant_node in descendant_nodes:
+            if ancestor_node in graph.nodes and descendant_node in graph.nodes:
+                graph = solve_bubble(graph, ancestor_node, descendant_node)
+    return graph
 
 def solve_entry_tips(graph, starting_nodes):
     pass
@@ -126,17 +198,42 @@ def solve_out_tips(graph, ending_nodes):
     pass
 
 def get_starting_nodes(graph):
-    pass
+    starting_nodes = list(graph.nodes)
+    for n, nbrs in graph.adj.items():
+        for nbr, eattr in nbrs.items():
+            if nbr in starting_nodes:
+                starting_nodes.remove(nbr)
+    return starting_nodes
 
 def get_sink_nodes(graph):
-    pass
+    sink_nodes = []
+    for node in graph.nodes:
+        if list(graph.successors(node)) == []:
+            sink_nodes.append(node)
+    return sink_nodes
 
 def get_contigs(graph, starting_nodes, ending_nodes):
-    pass
+    contigs = []
+    for starting_node in starting_nodes:
+        for ending_node in ending_nodes:
+            paths = list(nx.all_simple_paths(graph, starting_node, ending_node))
+            if len(paths) > 0:
+                path = paths[0]
+                path = path[0] + "".join([path[i][-1] for i in range(1,len(path))])
+                contigs.append((path, len(path)))
+    return contigs
+
 
 def save_contigs(contigs_list, output_file):
-    pass
+    with open(output_file, "w") as f:
+        for i in range(len(contigs_list)):
+            contig = contigs_list[i]
+            f.write(">contig_" + str(i) + " " + "len=" + str(contig[1]) + "\n" + fill(contig[0]) + "\n")
+        f.close
 
+def fill(text, width=80):
+    """Split text with a line return to respect fasta format"""
+    return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 #==============================================================
 # Main program
 #==============================================================
@@ -146,8 +243,21 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-    print(args)
-    a=build_kmer_dict(args.fastq_file, 3)
-    print(build_graph(a).number_of_nodes())
+    d=build_kmer_dict(args.fastq_file, args.kmer_size)
+    #print(d)
+    graph = build_graph(d)
+    starting_nodes = get_starting_nodes(graph)
+    sink_nodes = get_sink_nodes(graph)
+    contigs = get_contigs(graph, starting_nodes, sink_nodes)
+    save_contigs(contigs, "debruijn/test.txt")
+    graph_2 = nx.DiGraph()
+    graph_2.add_weighted_edges_from([(1, 2, 10), (3, 2, 10), (2, 4, 10),
+                                     (4, 5, 10), (2, 10,10), (10, 5,10),
+                                     (2, 8, 10), (8, 9, 10), (9, 5, 10),
+                                     (5, 6, 10), (5, 7, 10)])
+    graph_2 = solve_bubble(graph_2, 2, 5)
+    print(graph_2.nodes)
+    print(graph_2.edges)
+
 if __name__ == '__main__':
     main()
