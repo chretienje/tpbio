@@ -30,6 +30,8 @@ Vous créerez un programme Python3 nommé debruijn.py dans le dossier debruijn/.
  -k taille des kmer (optionnel - default 21)
  -o fichier output avec les contigs
 
+pour ce projet : python3 debruijn/debruijn.py -i data/eva71_plus_perfect.fq -k 21 -o data/contig
+
 ## Tests
 
 Vous testerez vos fonctions à l’aide de la commande pytest --cov=debruijn à exécuter dans le dossier debruijn-tp/. En raison de cette contrainte, les noms des fonctions ne seront pas libre. Il sera donc impératif de respecter le nom des fonctions “imposées”, de même que leur caractéristique et paramètres. 
